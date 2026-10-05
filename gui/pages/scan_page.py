@@ -5,7 +5,7 @@ import hashlib
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame,
     QPushButton, QFileDialog, QInputDialog, QProgressBar,
-    QSizePolicy
+    QSizePolicy, QScrollArea, QMessageBox
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 
@@ -53,8 +53,17 @@ QFrame#verdictFrame {
 }
 """
 
+SCROLL_QSS = """
+QScrollArea {
+    background-color: transparent;
+    border: none;
+}
+QScrollArea > QWidget > QWidget {
+    background-color: transparent;
+}
+"""
+
 TITLE_QSS = "color: #89b4fa; font-size: 13px; font-weight: 600;"
-LABEL_QSS = "color: #cdd6f4; font-size: 13px;"
 VALUE_QSS = "color: #cdd6f4; font-size: 13px;"
 SUBTLE_QSS = "color: #7f849c; font-size: 12px;"
 
@@ -96,22 +105,20 @@ class ScanWorker(QThread):
         self.finished.emit(result)
 
 
-# ---------- Хелпер: карточка ----------
+# ---------- Хелперы ----------
 def make_card(title: str) -> tuple:
     """Карточка с заголовком. Возвращает (frame, content_layout)."""
     frame = QFrame()
     frame.setObjectName("scanCard")
     frame.setStyleSheet(CARD_QSS)
-    frame.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum)
 
     outer = QVBoxLayout(frame)
-    outer.setContentsMargins(18, 15, 18, 15)
-    outer.setSpacing(10)
+    outer.setContentsMargins(20, 18, 20, 18)
+    outer.setSpacing(12)
 
     if title:
         lbl = QLabel(title)
         lbl.setStyleSheet(TITLE_QSS)
-        lbl.setFixedHeight(20)
         outer.addWidget(lbl)
 
     content = QVBoxLayout()
@@ -121,26 +128,23 @@ def make_card(title: str) -> tuple:
     return frame, content
 
 
-# ---------- Хелпер: строка label: value ----------
 def make_row(label: str, value: str) -> QWidget:
-    """Строка label: value с фиксированной высотой."""
+    """Строка label: value."""
     w = QWidget()
-    w.setMinimumHeight(22)
-    w.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
 
     h = QHBoxLayout(w)
-    h.setContentsMargins(0, 0, 0, 0)
-    h.setSpacing(8)
+    h.setContentsMargins(0, 4, 0, 4)
+    h.setSpacing(12)
 
     l1 = QLabel(label)
     l1.setStyleSheet(SUBTLE_QSS)
-    l1.setFixedWidth(90)
+    l1.setFixedWidth(100)
     l1.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
 
     l2 = QLabel(value)
     l2.setStyleSheet(VALUE_QSS)
     l2.setWordWrap(True)
-    l2.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+    l2.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
 
     h.addWidget(l1)
     h.addWidget(l2, 1)
@@ -162,18 +166,17 @@ class ScanPage(QWidget):
         root.setContentsMargins(30, 30, 30, 30)
         root.setSpacing(15)
 
+        # Заголовок
         title = QLabel("🔍  Сканер")
         title.setStyleSheet(
             "font-size: 22px; font-weight: bold; color: #cdd6f4;"
         )
-        title.setFixedHeight(32)
         root.addWidget(title)
 
         subtitle = QLabel(
             "Проверка файлов и ссылок с помощью YARA, MalwareBazaar и ИИ-модели"
         )
         subtitle.setStyleSheet(SUBTLE_QSS)
-        subtitle.setFixedHeight(18)
         root.addWidget(subtitle)
 
         # Кнопки
@@ -194,14 +197,24 @@ class ScanPage(QWidget):
         btn_row.addWidget(self.btn_url)
         root.addLayout(btn_row)
 
-        # Область результата
-        self.result_area = QVBoxLayout()
-        self.result_area.setSpacing(12)
+        # Скролл
+        self.scroll = QScrollArea()
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setStyleSheet(SCROLL_QSS)
+        self.scroll.setFrameShape(QFrame.Shape.NoFrame)
+
+        self.scroll_content = QWidget()
+        self.scroll_content.setStyleSheet("background-color: transparent;")
+
+        self.result_area = QVBoxLayout(self.scroll_content)
+        self.result_area.setContentsMargins(0, 5, 10, 5)
+        self.result_area.setSpacing(14)
         self.result_area.setAlignment(Qt.AlignmentFlag.AlignTop)
-        root.addLayout(self.result_area)
+
+        self.scroll.setWidget(self.scroll_content)
+        root.addWidget(self.scroll, 1)
 
         self._show_placeholder()
-        root.addStretch()
 
     def _clear_result(self):
         while self.result_area.count():
@@ -228,22 +241,19 @@ class ScanPage(QWidget):
         ph = QFrame()
         ph.setObjectName("scanCard")
         ph.setStyleSheet(CARD_QSS)
-        ph.setMinimumHeight(280)
-        ph.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+        ph.setMinimumHeight(300)
 
         layout = QVBoxLayout(ph)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.setSpacing(14)
+        layout.setSpacing(16)
 
         icon = QLabel("🔍")
         icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
         icon.setStyleSheet("font-size: 64px; color: #45475a;")
-        icon.setFixedHeight(90)
 
         text = QLabel("Выберите файл или ссылку для проверки")
         text.setAlignment(Qt.AlignmentFlag.AlignCenter)
         text.setStyleSheet("color: #7f849c; font-size: 16px;")
-        text.setFixedHeight(30)
 
         hint = QLabel(
             "Мы проверим его по 4 источникам:\n"
@@ -251,16 +261,17 @@ class ScanPage(QWidget):
         )
         hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
         hint.setStyleSheet("color: #585b70; font-size: 12px;")
-        hint.setFixedHeight(40)
         hint.setWordWrap(True)
 
+        layout.addStretch()
         layout.addWidget(icon)
         layout.addWidget(text)
         layout.addWidget(hint)
+        layout.addStretch()
 
         self.result_area.addWidget(ph)
 
-    # ---------- Состояние "проверяется" ----------
+    # ---------- Загрузка ----------
     def _show_checking(self, name: str, size: str = ""):
         self._clear_result()
 
@@ -273,16 +284,14 @@ class ScanPage(QWidget):
         card2 = QFrame()
         card2.setObjectName("scanCard")
         card2.setStyleSheet(CARD_QSS)
-        card2.setMinimumHeight(100)
-        card2.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+        card2.setMinimumHeight(110)
 
         l2 = QVBoxLayout(card2)
-        l2.setContentsMargins(18, 20, 18, 20)
+        l2.setContentsMargins(20, 20, 20, 20)
         l2.setSpacing(14)
 
         lbl = QLabel("⏳  Идёт проверка...")
         lbl.setStyleSheet("color: #89b4fa; font-size: 16px; font-weight: 600;")
-        lbl.setFixedHeight(24)
         l2.addWidget(lbl)
 
         progress = QProgressBar()
@@ -346,6 +355,48 @@ class ScanPage(QWidget):
         self._render_result(result, name, size)
         self.scan_completed.emit(result)
 
+        # Если обнаружена угроза и есть путь — предложить карантин
+        if result.get("verdict") == "malware" and self.current_filepath:
+            self._ask_quarantine(name)
+
+    def _ask_quarantine(self, name: str):
+        """Предлагает изолировать опасный файл."""
+        reply = QMessageBox.question(
+            self, "AegisScan — Обнаружена угроза",
+            f"Файл «{name}» опасен!\n\n"
+            f"Поместить его в карантин?\n"
+            f"(Файл будет зашифрован и перемещён в защищённую папку)",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        from core import quarantine, journal
+        res = quarantine.quarantine_file(
+            self.current_filepath,
+            reason="Обнаружена угроза",
+            source="Scanner",
+        )
+        if res.get("status") == "ok":
+            journal.add_event(
+                "quarantine",
+                name,
+                self.current_filepath,
+                "quarantined",
+                "Scanner",
+                "Файл помещён в карантин",
+            )
+            QMessageBox.information(
+                self, "AegisScan",
+                f"Файл помещён в карантин.\n\n"
+                f"ID: {res['record']['id']}"
+            )
+        else:
+            QMessageBox.warning(
+                self, "AegisScan",
+                f"Не удалось изолировать:\n{res.get('message', '')}"
+            )
+
     # ---------- Рендер ----------
     def _render_result(self, result: dict, name: str, size: str):
         self._clear_result()
@@ -372,33 +423,32 @@ class ScanPage(QWidget):
             icon, text, sub = "🚨", "ОБНАРУЖЕНА УГРОЗА", f"Найдено {malicious} срабатываний"
             style = VERDICT_DANGER_QSS
         elif suspicious > 0:
-            icon, text, sub = "⚠️", "ПОДОЗРИТЕЛЬНЫЙ", f"{suspicious} подозрительных срабатываний"
+            icon, text, sub = "⚠️", "ПОДОЗРИТЕЛЬНЫЙ", f"{suspicious} подозрительных"
             style = VERDICT_WARN_QSS
         else:
             icon, text, sub = "✅", "ЧИСТО", "Угроз не обнаружено"
             style = VERDICT_CLEAN_QSS
 
-        # Вердикт
         self.result_area.addWidget(self._make_verdict(icon, text, sub, style))
 
-        # Ряд: Файл | Обнаружения
         row = QHBoxLayout()
-        row.setSpacing(12)
-        row.setAlignment(Qt.AlignmentFlag.AlignTop)
+        row.setSpacing(14)
 
-        row.addWidget(self._make_file_card(name, size), 1)
-        row.addWidget(self._make_detection_card(malicious, suspicious), 1)
+        file_card = self._make_file_card(name, size)
+        detect_card = self._make_detection_card(malicious, suspicious)
 
-        self.result_area.addLayout(row)
+        row.addWidget(file_card, 1)
+        row.addWidget(detect_card, 1)
 
-        # Источники
+        row_widget = QWidget()
+        row_widget.setLayout(row)
+        self.result_area.addWidget(row_widget)
+
         self.result_area.addWidget(self._make_sources_card(result))
 
-        # ИИ-модель
         if ai_prob is not None:
             self.result_area.addWidget(self._make_ai_card(ai_prob))
 
-        # Доп. данные
         extra = self._make_extra_card(result)
         if extra:
             self.result_area.addWidget(extra)
@@ -408,32 +458,28 @@ class ScanPage(QWidget):
         frame = QFrame()
         frame.setObjectName("verdictFrame")
         frame.setStyleSheet(style)
-        frame.setMinimumHeight(110)
-        frame.setMaximumHeight(110)
-        frame.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+        frame.setMinimumHeight(120)
 
         layout = QHBoxLayout(frame)
-        layout.setContentsMargins(24, 20, 24, 20)
+        layout.setContentsMargins(24, 22, 24, 22)
         layout.setSpacing(20)
 
         icon_lbl = QLabel(icon)
-        icon_lbl.setStyleSheet("font-size: 48px;")
+        icon_lbl.setStyleSheet("font-size: 52px;")
         icon_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        icon_lbl.setFixedSize(70, 70)
+        icon_lbl.setFixedWidth(80)
         layout.addWidget(icon_lbl)
 
         text_layout = QVBoxLayout()
-        text_layout.setSpacing(4)
+        text_layout.setSpacing(6)
         text_layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
         t = QLabel(title)
-        t.setStyleSheet("color: white; font-size: 24px; font-weight: bold;")
-        t.setFixedHeight(32)
+        t.setStyleSheet("color: white; font-size: 26px; font-weight: bold;")
         text_layout.addWidget(t)
 
         s = QLabel(sub)
-        s.setStyleSheet("color: rgba(255,255,255,0.75); font-size: 13px;")
-        s.setFixedHeight(18)
+        s.setStyleSheet("color: rgba(255,255,255,0.8); font-size: 14px;")
         text_layout.addWidget(s)
 
         layout.addLayout(text_layout, 1)
@@ -459,32 +505,30 @@ class ScanPage(QWidget):
         percent = int((detected / total) * 100) if total else 0
 
         big = QLabel(f"{detected} / {total}")
-        big.setStyleSheet("color: #cdd6f4; font-size: 26px; font-weight: bold;")
-        big.setFixedHeight(34)
+        big.setStyleSheet("color: #cdd6f4; font-size: 30px; font-weight: bold;")
         c.addWidget(big)
 
         bar = QProgressBar()
         bar.setRange(0, 100)
         bar.setValue(percent)
         bar.setTextVisible(False)
-        bar.setFixedHeight(8)
+        bar.setFixedHeight(10)
         bar_color = "#dc3545" if detected > 0 else "#28a745"
         bar.setStyleSheet(f"""
             QProgressBar {{
                 background-color: #181825;
                 border: none;
-                border-radius: 4px;
+                border-radius: 5px;
             }}
             QProgressBar::chunk {{
                 background-color: {bar_color};
-                border-radius: 4px;
+                border-radius: 5px;
             }}
         """)
         c.addWidget(bar)
 
         sub = QLabel(f"Сработало источников: {detected}")
         sub.setStyleSheet(SUBTLE_QSS)
-        sub.setFixedHeight(18)
         c.addWidget(sub)
 
         return card
@@ -497,70 +541,67 @@ class ScanPage(QWidget):
         ai_prob = result.get("ai_probability", None)
         matches = result.get("matches", [])
 
-        # YARA
         if matches:
             names = ", ".join(m["rule"] for m in matches[:3])
-            yara_row = self._source_row("🚨", "YARA", f"Сработало: {names}")
-        elif "YARA" in source or result.get("source"):
-            yara_row = self._source_row("✅", "YARA", "Сигнатуры не сработали")
+            c.addWidget(self._source_row("🚨", "YARA", f"Сработало: {names}"))
         else:
-            yara_row = self._source_row("⚪", "YARA", "Пропущен")
-        c.addWidget(yara_row)
+            c.addWidget(self._source_row("✅", "YARA", "Сигнатуры не сработали"))
 
-        # MalwareBazaar
         if "MalwareBazaar" in source and malicious > 0:
-            mb_row = self._source_row("🚨", "MalwareBazaar",
-                                      result.get("signature", "Найден в базе"))
+            c.addWidget(self._source_row(
+                "🚨", "MalwareBazaar",
+                result.get("signature", "Найден в базе")
+            ))
         elif "MalwareBazaar" in source:
-            mb_row = self._source_row("✅", "MalwareBazaar", "Не найден в базе malware")
+            c.addWidget(self._source_row(
+                "✅", "MalwareBazaar", "Не найден в базе malware"
+            ))
         else:
-            mb_row = self._source_row("⚪", "MalwareBazaar", "Пропущен")
-        c.addWidget(mb_row)
+            c.addWidget(self._source_row("⚪", "MalwareBazaar", "Пропущен"))
 
-        # VirusTotal
         if "VirusTotal" in source:
-            vt_row = self._source_row("✅", "VirusTotal", "Проверен")
+            c.addWidget(self._source_row("✅", "VirusTotal", "Проверен"))
         else:
-            vt_row = self._source_row("⚪", "VirusTotal", "Пропущен (нет ключа/VPN)")
-        c.addWidget(vt_row)
+            c.addWidget(self._source_row(
+                "⚪", "VirusTotal", "Пропущен (нет ключа/VPN)"
+            ))
 
-        # AI
         if ai_prob is not None:
             if ai_prob >= 0.7:
-                ai_mark = "🚨"
+                mark = "🚨"
             elif ai_prob >= 0.4:
-                ai_mark = "⚠️"
+                mark = "⚠️"
             else:
-                ai_mark = "✅"
-            ai_row = self._source_row(ai_mark, "ИИ-модель",
-                                      f"Вероятность malware: {ai_prob * 100:.1f}%")
+                mark = "✅"
+            c.addWidget(self._source_row(
+                mark, "ИИ-модель",
+                f"Вероятность malware: {ai_prob * 100:.1f}%"
+            ))
         else:
-            ai_row = self._source_row("⚪", "ИИ-модель", "Не выполнен")
-        c.addWidget(ai_row)
+            c.addWidget(self._source_row("⚪", "ИИ-модель", "Не выполнен"))
 
         return card
 
     def _source_row(self, icon: str, name: str, text: str) -> QWidget:
         w = QWidget()
-        w.setMinimumHeight(26)
-        w.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+        w.setMinimumHeight(28)
 
         h = QHBoxLayout(w)
-        h.setContentsMargins(0, 2, 0, 2)
-        h.setSpacing(10)
+        h.setContentsMargins(0, 4, 0, 4)
+        h.setSpacing(12)
 
         i = QLabel(icon)
         i.setStyleSheet("font-size: 16px;")
-        i.setFixedSize(24, 24)
+        i.setFixedWidth(24)
         i.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         n = QLabel(name)
         n.setStyleSheet("color: #cdd6f4; font-size: 13px; font-weight: 600;")
-        n.setFixedWidth(140)
+        n.setFixedWidth(150)
 
         t = QLabel(text)
         t.setStyleSheet(SUBTLE_QSS)
-        t.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        t.setWordWrap(True)
 
         h.addWidget(i)
         h.addWidget(n)
@@ -576,19 +617,18 @@ class ScanPage(QWidget):
 
         lbl = QLabel("Вероятность malware:")
         lbl.setStyleSheet("color: #cdd6f4; font-size: 13px;")
-        lbl.setFixedHeight(24)
         row.addWidget(lbl)
         row.addStretch()
 
-        val = QLabel(f"{percent}%")
         if percent >= 70:
             color = "#dc3545"
         elif percent >= 40:
             color = "#f9a825"
         else:
             color = "#28a745"
-        val.setStyleSheet(f"color: {color}; font-size: 20px; font-weight: bold;")
-        val.setFixedHeight(26)
+
+        val = QLabel(f"{percent}%")
+        val.setStyleSheet(f"color: {color}; font-size: 22px; font-weight: bold;")
         row.addWidget(val)
         c.addLayout(row)
 
@@ -596,23 +636,22 @@ class ScanPage(QWidget):
         bar.setRange(0, 100)
         bar.setValue(percent)
         bar.setTextVisible(False)
-        bar.setFixedHeight(10)
+        bar.setFixedHeight(12)
         bar.setStyleSheet(f"""
             QProgressBar {{
                 background-color: #181825;
                 border: none;
-                border-radius: 5px;
+                border-radius: 6px;
             }}
             QProgressBar::chunk {{
                 background-color: {color};
-                border-radius: 5px;
+                border-radius: 6px;
             }}
         """)
         c.addWidget(bar)
 
         hint = QLabel("Модель LightGBM · 18 статических признаков PE-файла")
         hint.setStyleSheet("color: #585b70; font-size: 11px;")
-        hint.setFixedHeight(16)
         c.addWidget(hint)
 
         return card
@@ -649,30 +688,27 @@ class ScanPage(QWidget):
         frame = QFrame()
         frame.setObjectName("verdictFrame")
         frame.setStyleSheet(VERDICT_WARN_QSS)
-        frame.setMinimumHeight(110)
-        frame.setMaximumHeight(110)
-        frame.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+        frame.setMinimumHeight(120)
 
         layout = QHBoxLayout(frame)
-        layout.setContentsMargins(24, 20, 24, 20)
+        layout.setContentsMargins(24, 22, 24, 22)
         layout.setSpacing(20)
 
         icon = QLabel("⚠️")
-        icon.setStyleSheet("font-size: 48px;")
-        icon.setFixedSize(70, 70)
+        icon.setStyleSheet("font-size: 52px;")
+        icon.setFixedWidth(80)
         layout.addWidget(icon)
 
         text_layout = QVBoxLayout()
-        text_layout.setSpacing(4)
+        text_layout.setSpacing(6)
         text_layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
         t = QLabel("ОШИБКА ПРОВЕРКИ")
-        t.setStyleSheet("color: white; font-size: 22px; font-weight: bold;")
-        t.setFixedHeight(30)
+        t.setStyleSheet("color: white; font-size: 24px; font-weight: bold;")
         text_layout.addWidget(t)
 
         s = QLabel(msg)
-        s.setStyleSheet("color: rgba(255,255,255,0.75); font-size: 12px;")
+        s.setStyleSheet("color: rgba(255,255,255,0.8); font-size: 13px;")
         s.setWordWrap(True)
         text_layout.addWidget(s)
 

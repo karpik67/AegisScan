@@ -90,7 +90,7 @@ class MainWindow(QMainWindow):
 
         sidebar_layout.addStretch()
 
-        version = QLabel("v0.3.0")
+        version = QLabel("v0.4.0")
         version.setStyleSheet("color: #585b70; font-size: 11px; padding: 10px;")
         version.setAlignment(Qt.AlignmentFlag.AlignCenter)
         sidebar_layout.addWidget(version)
@@ -128,6 +128,18 @@ class MainWindow(QMainWindow):
     def _switch_page(self, index: int):
         self.stack.setCurrentIndex(index)
         self.nav_buttons[index].setChecked(True)
+
+        # Автообновление при переходе
+        if index == 2:  # Карантин
+            try:
+                self.quarantine_page.refresh()
+            except Exception:
+                pass
+        elif index == 3:  # Журнал
+            try:
+                self.journal_page.refresh()
+            except Exception:
+                pass
 
     def _go_to_scan(self):
         self._switch_page(1)
