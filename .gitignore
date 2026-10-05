@@ -1,0 +1,36 @@
+# Секреты
+.env
+
+# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Модели и данные
+model/*.onnx
+*.onnx
+data/dataset.csv
+data/ember_sample/
+journal.db
+quarantine/
+quarantine.key
+quarantine.json
+
+# PyInstaller
+build/
+dist/
+*.spec.bak
+
+# Конфиг
+config.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# ОС
+Thumbs.db
+desktop.ini

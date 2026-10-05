@@ -1,0 +1,11 @@
+pyqt6
+requests
+yara-python
+lightgbm
+scikit-learn
+pandas
+numpy
+cryptography
+pefile
+onnxruntime
+python-dotenv
