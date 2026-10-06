@@ -12,12 +12,13 @@ def _setup_paths():
 def main():
     _setup_paths()
 
+    # Проверяем флаг --minimized (используется при автозапуске)
+    start_minimized = "--minimized" in sys.argv
+
     from PyQt6.QtWidgets import QApplication
-    from PyQt6.QtGui import QIcon
     from gui.main_window import MainWindow
     from gui.tray_icon import create_icon
 
-    # Запрещаем закрытие приложения, когда последнее окно скрыто
     QApplication.setQuitOnLastWindowClosed(False)
 
     app = QApplication(sys.argv)
@@ -25,7 +26,20 @@ def main():
     app.setWindowIcon(create_icon("#89b4fa"))
 
     window = MainWindow()
-    window.show()
+    window.start_minimized = start_minimized
+
+    if start_minimized:
+        # При автозапуске — только в трей, окно не показываем
+        window.hide()
+        try:
+            window.tray.notify(
+                "AegisScan запущен",
+                "Защита активна. Приложение свёрнуто в трей."
+            )
+        except Exception:
+            pass
+    else:
+        window.show()
 
     sys.exit(app.exec())
 

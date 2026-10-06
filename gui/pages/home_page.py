@@ -1,7 +1,7 @@
-"""Главная страница."""
+"""Главная страница с прокруткой."""
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame,
-    QPushButton, QCheckBox
+    QPushButton, QCheckBox, QScrollArea, QSizePolicy, QLayout
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 
@@ -25,7 +25,6 @@ QFrame#infoCard {
 }
 """
 
-# Стиль для активной защиты (зелёный)
 PROTECT_ON_QSS = """
 QFrame#protectCard {
     background-color: #1e3a2f;
@@ -34,12 +33,39 @@ QFrame#protectCard {
 }
 """
 
-# Стиль для выключенной защиты (красный)
 PROTECT_OFF_QSS = """
 QFrame#protectCard {
     background-color: #3a1e1e;
     border: 2px solid #dc3545;
     border-radius: 12px;
+}
+"""
+
+PRIMARY_BTN_QSS = """
+QPushButton {
+    background-color: #89b4fa;
+    color: #1e1e2e;
+    font-weight: bold;
+    font-size: 16px;
+    border: none;
+    border-radius: 12px;
+    padding: 0px;
+}
+QPushButton:hover {
+    background-color: #b4befe;
+}
+QPushButton:pressed {
+    background-color: #74a0e0;
+}
+"""
+
+SCROLL_QSS = """
+QScrollArea {
+    background-color: transparent;
+    border: none;
+}
+QScrollArea > QWidget > QWidget {
+    background-color: transparent;
 }
 """
 
@@ -54,6 +80,7 @@ class StatCard(QFrame):
         self.setObjectName("statCard")
         self.setStyleSheet(CARD_QSS)
         self.setMinimumHeight(120)
+        self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(20, 18, 20, 18)
@@ -71,20 +98,18 @@ class StatCard(QFrame):
         self.lbl_subtitle.setStyleSheet(CARD_SUBTITLE_QSS)
         layout.addWidget(self.lbl_subtitle)
 
-        layout.addStretch()
-
     def set_value(self, value: str):
         self.lbl_value.setText(value)
 
 
 class ProtectionStatusCard(QFrame):
-    """Карточка статуса резидентной защиты."""
     toggled = pyqtSignal(bool)
 
     def __init__(self):
         super().__init__()
         self.setObjectName("protectCard")
         self.setMinimumHeight(100)
+        self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         self._enabled = True
 
         layout = QHBoxLayout(self)
@@ -111,6 +136,7 @@ class ProtectionStatusCard(QFrame):
             "color: rgba(255,255,255,0.8); font-size: 13px; "
             "background: transparent;"
         )
+        self.subtitle.setWordWrap(True)
         info.addWidget(self.subtitle)
 
         layout.addLayout(info, 1)
@@ -138,7 +164,6 @@ class ProtectionStatusCard(QFrame):
         self.toggle.toggled.connect(self._on_toggle)
         layout.addWidget(self.toggle)
 
-        # Изначально — включено, зелёный стиль
         self.setStyleSheet(PROTECT_ON_QSS)
 
     def _on_toggle(self, checked: bool):
@@ -154,7 +179,6 @@ class ProtectionStatusCard(QFrame):
         self.toggled.emit(checked)
 
     def set_state(self, enabled: bool):
-        """Программная установка состояния (без сигнала toggled)."""
         self.toggle.blockSignals(True)
         self.toggle.setChecked(enabled)
         self.toggle.blockSignals(False)
@@ -178,9 +202,26 @@ class HomePage(QWidget):
         self._build_ui()
 
     def _build_ui(self):
-        layout = QVBoxLayout(self)
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
+
+        # Скролл
+        self.scroll = QScrollArea()
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setStyleSheet(SCROLL_QSS)
+        self.scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+
+        # Контент скролла
+        self.scroll_content = QWidget()
+        self.scroll_content.setStyleSheet("background-color: transparent;")
+
+        layout = QVBoxLayout(self.scroll_content)
         layout.setContentsMargins(30, 30, 30, 30)
         layout.setSpacing(20)
+        # КЛЮЧЕВОЕ: layout знает свои минимальные размеры → появляется прокрутка
+        layout.setSizeConstraint(QLayout.SizeConstraint.SetMinAndMaxSize)
 
         # Заголовок
         title = QLabel("Добро пожаловать в AegisScan")
@@ -198,10 +239,15 @@ class HomePage(QWidget):
         self.protect_card.toggled.connect(self.protection_toggled.emit)
         layout.addWidget(self.protect_card)
 
-        # Кнопка проверки
-        self.btn_scan = QPushButton("🔍  ПРОВЕРИТЬ ФАЙЛ")
-        self.btn_scan.setObjectName("primaryButton")
-        self.btn_scan.setMinimumHeight(70)
+        # Кнопка проверки — БОЛЬШАЯ, с локальным стилем
+        self.btn_scan = QPushButton("🔍   ПРОВЕРИТЬ ФАЙЛ")
+        self.btn_scan.setStyleSheet(PRIMARY_BTN_QSS)
+        self.btn_scan.setMinimumHeight(80)
+        self.btn_scan.setMaximumHeight(80)
+        self.btn_scan.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
+        self.btn_scan.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_scan.clicked.connect(self.scan_requested.emit)
         layout.addWidget(self.btn_scan)
 
@@ -222,6 +268,7 @@ class HomePage(QWidget):
         info = QFrame()
         info.setObjectName("infoCard")
         info.setStyleSheet(INFO_CARD_QSS)
+        info.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum)
 
         info_outer = QVBoxLayout(info)
         info_outer.setContentsMargins(20, 18, 20, 18)
@@ -244,7 +291,11 @@ class HomePage(QWidget):
             info_outer.addWidget(lbl)
 
         layout.addWidget(info)
+        # Пружина для растяжения при большом окне
         layout.addStretch()
+
+        self.scroll.setWidget(self.scroll_content)
+        root.addWidget(self.scroll)
 
     def update_stats(self, scanned: int, threats: int):
         self.card_scanned.set_value(str(scanned))

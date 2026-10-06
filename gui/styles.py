@@ -1,10 +1,10 @@
-"""Стили QSS для AegisScan — минималистичные, без конфликтов Qt."""
+"""Стили QSS для AegisScan — тёмная тема."""
 
 DARK_THEME = """
 /* ---------- Основное ---------- */
 QMainWindow, QWidget {
     background-color: #1e1e2e;
-    color: #cdd6f4;
+    color: #e0e0e0;
     font-family: 'Segoe UI', Arial, sans-serif;
     font-size: 13px;
 }
@@ -58,7 +58,7 @@ QPushButton#navButton:checked {
     border-left: 3px solid #89b4fa;
 }
 
-/* ---------- Кнопки ---------- */
+/* ---------- Обычные кнопки ---------- */
 QPushButton {
     background-color: #45475a;
     color: #cdd6f4;
@@ -71,16 +71,6 @@ QPushButton {
 QPushButton:hover  { background-color: #585b70; }
 QPushButton:pressed { background-color: #313244; }
 QPushButton:disabled { background-color: #313244; color: #585b70; }
-
-QPushButton#primaryButton {
-    background-color: #89b4fa;
-    color: #1e1e2e;
-    font-weight: bold;
-    font-size: 15px;
-    padding: 15px 30px;
-    border-radius: 10px;
-}
-QPushButton#primaryButton:hover { background-color: #b4befe; }
 
 /* ---------- Поля ввода ---------- */
 QLineEdit, QTextEdit, QPlainTextEdit {

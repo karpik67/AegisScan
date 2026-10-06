@@ -22,7 +22,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("AegisScan — антивирус с ИИ")
-        self.setMinimumSize(1000, 650)
+        self.setMinimumSize(900, 600)
         self.setStyleSheet(DARK_THEME)
 
         self.stats = {"scanned": 0, "threats": 0}
@@ -34,7 +34,6 @@ class MainWindow(QMainWindow):
         self._setup_tray()
         self._start_protection()
 
-    # ---------- UI ----------
     def _build_ui(self):
         central = QWidget()
         self.setCentralWidget(central)
@@ -42,6 +41,7 @@ class MainWindow(QMainWindow):
         root_layout.setContentsMargins(0, 0, 0, 0)
         root_layout.setSpacing(0)
 
+        # Верхняя панель
         top_bar = QFrame()
         top_bar.setStyleSheet(
             "background-color: #181825; border-bottom: 1px solid #313244;"
@@ -62,6 +62,7 @@ class MainWindow(QMainWindow):
 
         root_layout.addWidget(top_bar)
 
+        # Основная область
         body = QHBoxLayout()
         body.setContentsMargins(0, 0, 0, 0)
         body.setSpacing(0)
@@ -130,14 +131,12 @@ class MainWindow(QMainWindow):
         self.nav_buttons[0].setChecked(True)
         self.stack.setCurrentIndex(0)
 
-    # ---------- Трей ----------
     def _setup_tray(self):
         self.tray = TrayIcon(self)
         self.tray.show_window_requested.connect(self._restore_window)
         self.tray.quit_requested.connect(self._quit_app)
         self.tray.show()
 
-    # ---------- Резидентная защита ----------
     def _start_protection(self):
         if self.protector is not None and self.protector.isRunning():
             return
@@ -152,14 +151,11 @@ class MainWindow(QMainWindow):
                               "Резидентная защита запущена")
         except Exception as e:
             print(f"[Main] Ошибка запуска защиты: {e}")
-            QMessageBox.warning(self, "AegisScan",
-                                f"Не удалось запустить резидентную защиту:\n{e}")
 
     def _stop_protection(self):
-        """Останавливает и дожидается завершения потока."""
         if self.protector is not None:
             try:
-                self.protector.stop()  # теперь с wait()
+                self.protector.stop()
             except Exception as e:
                 print(f"[Main] Ошибка остановки: {e}")
             self.protector = None
@@ -192,7 +188,6 @@ class MainWindow(QMainWindow):
         self.stats["scanned"] += 1
         self.home_page.update_stats(self.stats["scanned"], self.stats["threats"])
 
-    # ---------- Навигация ----------
     def _switch_page(self, index: int):
         self.stack.setCurrentIndex(index)
         self.nav_buttons[index].setChecked(True)
@@ -231,28 +226,22 @@ class MainWindow(QMainWindow):
         self.status_badge.style().unpolish(self.status_badge)
         self.status_badge.style().polish(self.status_badge)
 
-    # ---------- Свернуть/восстановить ----------
     def _restore_window(self):
         self.showNormal()
         self.activateWindow()
         self.raise_()
 
     def _quit_app(self):
-        """Корректный выход из приложения."""
         self.allow_close = True
-        # 1. Останавливаем защиту и ЖДЁМ завершения потока
         self._stop_protection()
-        # 2. Скрываем трей
         try:
             self.tray.hide()
         except Exception:
             pass
-        # 3. Выходим из приложения
         QApplication.quit()
 
     def closeEvent(self, event: QCloseEvent):
         if self.allow_close:
-            # Уже идёт выход — просто останавливаем и принимаем
             if self.protector is not None:
                 try:
                     self.protector.stop()
@@ -262,7 +251,6 @@ class MainWindow(QMainWindow):
             return
 
         if self.minimize_to_tray:
-            # Сворачиваем в трей
             event.ignore()
             self.hide()
             try:
@@ -273,7 +261,6 @@ class MainWindow(QMainWindow):
             except Exception:
                 pass
         else:
-            # Реально закрываем — останавливаем поток
             self.allow_close = True
             self._stop_protection()
             event.accept()
