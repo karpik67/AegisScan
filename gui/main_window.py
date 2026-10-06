@@ -1,17 +1,21 @@
-"""Главное окно AegisScan с боковой навигацией."""
+"""Главное окно AegisScan с боковой навигацией, треем и резидентной защитой."""
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QLabel, QFrame, QPushButton, QStackedWidget, QButtonGroup
+    QLabel, QFrame, QPushButton, QStackedWidget, QButtonGroup,
+    QMessageBox, QApplication
 )
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QCloseEvent
 
 from gui.styles import DARK_THEME
+from gui.tray_icon import TrayIcon
 from gui.pages.home_page import HomePage
 from gui.pages.scan_page import ScanPage
 from gui.pages.chat_page import ChatPage
 from gui.pages.quarantine_page import QuarantinePage
 from gui.pages.journal_page import JournalPage
 from gui.pages.settings_page import SettingsPage
+from core import resident, journal
 
 
 class MainWindow(QMainWindow):
@@ -22,8 +26,15 @@ class MainWindow(QMainWindow):
         self.setStyleSheet(DARK_THEME)
 
         self.stats = {"scanned": 0, "threats": 0}
-        self._build_ui()
+        self.protector = None
+        self.allow_close = False
+        self.minimize_to_tray = True
 
+        self._build_ui()
+        self._setup_tray()
+        self._start_protection()
+
+    # ---------- UI ----------
     def _build_ui(self):
         central = QWidget()
         self.setCentralWidget(central)
@@ -31,7 +42,6 @@ class MainWindow(QMainWindow):
         root_layout.setContentsMargins(0, 0, 0, 0)
         root_layout.setSpacing(0)
 
-        # ===== Верхняя панель =====
         top_bar = QFrame()
         top_bar.setStyleSheet(
             "background-color: #181825; border-bottom: 1px solid #313244;"
@@ -43,7 +53,6 @@ class MainWindow(QMainWindow):
         app_title = QLabel("🛡  AegisScan")
         app_title.setObjectName("appTitle")
         top_layout.addWidget(app_title)
-
         top_layout.addStretch()
 
         self.status_badge = QLabel("Защита активна")
@@ -53,12 +62,10 @@ class MainWindow(QMainWindow):
 
         root_layout.addWidget(top_bar)
 
-        # ===== Основная область =====
         body = QHBoxLayout()
         body.setContentsMargins(0, 0, 0, 0)
         body.setSpacing(0)
 
-        # Сайдбар
         sidebar = QFrame()
         sidebar.setObjectName("sidebar")
         sidebar_layout = QVBoxLayout(sidebar)
@@ -90,14 +97,13 @@ class MainWindow(QMainWindow):
 
         sidebar_layout.addStretch()
 
-        version = QLabel("v0.4.0")
+        version = QLabel("v0.5.0")
         version.setStyleSheet("color: #585b70; font-size: 11px; padding: 10px;")
         version.setAlignment(Qt.AlignmentFlag.AlignCenter)
         sidebar_layout.addWidget(version)
 
         body.addWidget(sidebar)
 
-        # Стек страниц
         self.stack = QStackedWidget()
 
         self.home_page = HomePage()
@@ -107,35 +113,96 @@ class MainWindow(QMainWindow):
         self.chat_page = ChatPage()
         self.settings_page = SettingsPage()
 
-        self.stack.addWidget(self.home_page)       # 0
-        self.stack.addWidget(self.scan_page)       # 1
-        self.stack.addWidget(self.quarantine_page) # 2
-        self.stack.addWidget(self.journal_page)    # 3
-        self.stack.addWidget(self.chat_page)       # 4
-        self.stack.addWidget(self.settings_page)   # 5
+        self.stack.addWidget(self.home_page)
+        self.stack.addWidget(self.scan_page)
+        self.stack.addWidget(self.quarantine_page)
+        self.stack.addWidget(self.journal_page)
+        self.stack.addWidget(self.chat_page)
+        self.stack.addWidget(self.settings_page)
 
         body.addWidget(self.stack, 1)
         root_layout.addLayout(body)
 
-        # Связи
         self.home_page.scan_requested.connect(self._go_to_scan)
+        self.home_page.protection_toggled.connect(self._on_protection_toggled)
         self.scan_page.scan_completed.connect(self._on_scan_completed)
 
-        # Первая страница
         self.nav_buttons[0].setChecked(True)
         self.stack.setCurrentIndex(0)
 
+    # ---------- Трей ----------
+    def _setup_tray(self):
+        self.tray = TrayIcon(self)
+        self.tray.show_window_requested.connect(self._restore_window)
+        self.tray.quit_requested.connect(self._quit_app)
+        self.tray.show()
+
+    # ---------- Резидентная защита ----------
+    def _start_protection(self):
+        if self.protector is not None and self.protector.isRunning():
+            return
+        try:
+            self.protector = resident.ResidentProtector()
+            self.protector.threat_detected.connect(self._on_threat)
+            self.protector.scan_result.connect(self._on_resident_scan)
+            self.protector.start()
+            self.home_page.set_protection_state(True)
+            self.tray.set_protection_state(True)
+            journal.add_event("startup", "AegisScan", "", "clean", "System",
+                              "Резидентная защита запущена")
+        except Exception as e:
+            print(f"[Main] Ошибка запуска защиты: {e}")
+            QMessageBox.warning(self, "AegisScan",
+                                f"Не удалось запустить резидентную защиту:\n{e}")
+
+    def _stop_protection(self):
+        """Останавливает и дожидается завершения потока."""
+        if self.protector is not None:
+            try:
+                self.protector.stop()  # теперь с wait()
+            except Exception as e:
+                print(f"[Main] Ошибка остановки: {e}")
+            self.protector = None
+        journal.add_event("startup", "AegisScan", "", "clean", "System",
+                          "Резидентная защита остановлена")
+
+    def _on_protection_toggled(self, enabled: bool):
+        if enabled:
+            self._start_protection()
+            self._set_status("Защита активна", "ok")
+            self.tray.set_protection_state(True)
+        else:
+            self._stop_protection()
+            self._set_status("Защита отключена", "warning")
+            self.tray.set_protection_state(False)
+
+    def _on_threat(self, info: dict):
+        name = info.get("name", "—")
+        self.stats["threats"] += 1
+        self.stats["scanned"] += 1
+        self.home_page.update_stats(self.stats["scanned"], self.stats["threats"])
+        self._set_status("Обнаружена угроза", "danger")
+
+        self.tray.notify(
+            "🚨 AegisScan — Обнаружена угроза",
+            f"{name}\nФайл помещён в карантин",
+        )
+
+    def _on_resident_scan(self, result: dict):
+        self.stats["scanned"] += 1
+        self.home_page.update_stats(self.stats["scanned"], self.stats["threats"])
+
+    # ---------- Навигация ----------
     def _switch_page(self, index: int):
         self.stack.setCurrentIndex(index)
         self.nav_buttons[index].setChecked(True)
 
-        # Автообновление при переходе
-        if index == 2:  # Карантин
+        if index == 2:
             try:
                 self.quarantine_page.refresh()
             except Exception:
                 pass
-        elif index == 3:  # Журнал
+        elif index == 3:
             try:
                 self.journal_page.refresh()
             except Exception:
@@ -163,3 +230,50 @@ class MainWindow(QMainWindow):
         self.status_badge.setProperty("state", state)
         self.status_badge.style().unpolish(self.status_badge)
         self.status_badge.style().polish(self.status_badge)
+
+    # ---------- Свернуть/восстановить ----------
+    def _restore_window(self):
+        self.showNormal()
+        self.activateWindow()
+        self.raise_()
+
+    def _quit_app(self):
+        """Корректный выход из приложения."""
+        self.allow_close = True
+        # 1. Останавливаем защиту и ЖДЁМ завершения потока
+        self._stop_protection()
+        # 2. Скрываем трей
+        try:
+            self.tray.hide()
+        except Exception:
+            pass
+        # 3. Выходим из приложения
+        QApplication.quit()
+
+    def closeEvent(self, event: QCloseEvent):
+        if self.allow_close:
+            # Уже идёт выход — просто останавливаем и принимаем
+            if self.protector is not None:
+                try:
+                    self.protector.stop()
+                except Exception:
+                    pass
+            event.accept()
+            return
+
+        if self.minimize_to_tray:
+            # Сворачиваем в трей
+            event.ignore()
+            self.hide()
+            try:
+                self.tray.notify(
+                    "AegisScan",
+                    "Приложение свёрнуто в трей. Защита продолжает работу.",
+                )
+            except Exception:
+                pass
+        else:
+            # Реально закрываем — останавливаем поток
+            self.allow_close = True
+            self._stop_protection()
+            event.accept()

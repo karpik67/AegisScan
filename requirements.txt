@@ -9,3 +9,5 @@ cryptography
 pefile
 onnxruntime
 python-dotenv
+watchdog
+psutil

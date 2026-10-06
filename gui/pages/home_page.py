@@ -1,11 +1,11 @@
 """Главная страница."""
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QPushButton
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame,
+    QPushButton, QCheckBox
 )
-from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal
 
 
-# Локальные стили — без padding в QSS
 CARD_QSS = """
 QFrame#statCard {
     background-color: #24273a;
@@ -25,14 +25,30 @@ QFrame#infoCard {
 }
 """
 
+# Стиль для активной защиты (зелёный)
+PROTECT_ON_QSS = """
+QFrame#protectCard {
+    background-color: #1e3a2f;
+    border: 2px solid #28a745;
+    border-radius: 12px;
+}
+"""
+
+# Стиль для выключенной защиты (красный)
+PROTECT_OFF_QSS = """
+QFrame#protectCard {
+    background-color: #3a1e1e;
+    border: 2px solid #dc3545;
+    border-radius: 12px;
+}
+"""
+
 CARD_TITLE_QSS = "color: #a6adc8; font-size: 12px; font-weight: 600;"
 CARD_VALUE_QSS = "color: #89b4fa; font-size: 34px; font-weight: bold;"
 CARD_SUBTITLE_QSS = "color: #7f849c; font-size: 12px;"
 
 
 class StatCard(QFrame):
-    """Карточка со статистикой."""
-
     def __init__(self, title: str, value: str = "0", subtitle: str = ""):
         super().__init__()
         self.setObjectName("statCard")
@@ -61,10 +77,101 @@ class StatCard(QFrame):
         self.lbl_value.setText(value)
 
 
-class HomePage(QWidget):
-    """Главная страница приложения."""
+class ProtectionStatusCard(QFrame):
+    """Карточка статуса резидентной защиты."""
+    toggled = pyqtSignal(bool)
 
+    def __init__(self):
+        super().__init__()
+        self.setObjectName("protectCard")
+        self.setMinimumHeight(100)
+        self._enabled = True
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(24, 18, 24, 18)
+        layout.setSpacing(20)
+
+        self.icon = QLabel("🛡")
+        self.icon.setStyleSheet("font-size: 44px; background: transparent;")
+        self.icon.setFixedWidth(60)
+        layout.addWidget(self.icon)
+
+        info = QVBoxLayout()
+        info.setSpacing(4)
+
+        self.title = QLabel("ЗАЩИТА В РЕАЛЬНОМ ВРЕМЕНИ")
+        self.title.setStyleSheet(
+            "color: white; font-size: 13px; font-weight: 600; "
+            "background: transparent;"
+        )
+        info.addWidget(self.title)
+
+        self.subtitle = QLabel("Активна — файлы проверяются автоматически")
+        self.subtitle.setStyleSheet(
+            "color: rgba(255,255,255,0.8); font-size: 13px; "
+            "background: transparent;"
+        )
+        info.addWidget(self.subtitle)
+
+        layout.addLayout(info, 1)
+
+        self.toggle = QCheckBox()
+        self.toggle.setChecked(True)
+        self.toggle.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.toggle.setStyleSheet("""
+            QCheckBox {
+                background: transparent;
+                spacing: 0;
+            }
+            QCheckBox::indicator {
+                width: 46px;
+                height: 24px;
+                border-radius: 12px;
+                background-color: rgba(255,255,255,0.25);
+                border: 2px solid rgba(255,255,255,0.4);
+            }
+            QCheckBox::indicator:checked {
+                background-color: #89b4fa;
+                border: 2px solid #89b4fa;
+            }
+        """)
+        self.toggle.toggled.connect(self._on_toggle)
+        layout.addWidget(self.toggle)
+
+        # Изначально — включено, зелёный стиль
+        self.setStyleSheet(PROTECT_ON_QSS)
+
+    def _on_toggle(self, checked: bool):
+        self._enabled = checked
+        if checked:
+            self.setStyleSheet(PROTECT_ON_QSS)
+            self.icon.setText("🛡")
+            self.subtitle.setText("Активна — файлы проверяются автоматически")
+        else:
+            self.setStyleSheet(PROTECT_OFF_QSS)
+            self.icon.setText("⚠️")
+            self.subtitle.setText("Отключена — файлы не проверяются автоматически")
+        self.toggled.emit(checked)
+
+    def set_state(self, enabled: bool):
+        """Программная установка состояния (без сигнала toggled)."""
+        self.toggle.blockSignals(True)
+        self.toggle.setChecked(enabled)
+        self.toggle.blockSignals(False)
+        self._enabled = enabled
+        if enabled:
+            self.setStyleSheet(PROTECT_ON_QSS)
+            self.icon.setText("🛡")
+            self.subtitle.setText("Активна — файлы проверяются автоматически")
+        else:
+            self.setStyleSheet(PROTECT_OFF_QSS)
+            self.icon.setText("⚠️")
+            self.subtitle.setText("Отключена — файлы не проверяются автоматически")
+
+
+class HomePage(QWidget):
     scan_requested = pyqtSignal()
+    protection_toggled = pyqtSignal(bool)
 
     def __init__(self):
         super().__init__()
@@ -75,7 +182,7 @@ class HomePage(QWidget):
         layout.setContentsMargins(30, 30, 30, 30)
         layout.setSpacing(20)
 
-        # --- Заголовок ---
+        # Заголовок
         title = QLabel("Добро пожаловать в AegisScan")
         title.setStyleSheet(
             "font-size: 26px; font-weight: bold; color: #cdd6f4;"
@@ -86,14 +193,19 @@ class HomePage(QWidget):
         subtitle.setStyleSheet("color: #7f849c; font-size: 13px;")
         layout.addWidget(subtitle)
 
-        # --- Большая кнопка проверки ---
+        # Резидентная защита
+        self.protect_card = ProtectionStatusCard()
+        self.protect_card.toggled.connect(self.protection_toggled.emit)
+        layout.addWidget(self.protect_card)
+
+        # Кнопка проверки
         self.btn_scan = QPushButton("🔍  ПРОВЕРИТЬ ФАЙЛ")
         self.btn_scan.setObjectName("primaryButton")
-        self.btn_scan.setMinimumHeight(80)
+        self.btn_scan.setMinimumHeight(70)
         self.btn_scan.clicked.connect(self.scan_requested.emit)
         layout.addWidget(self.btn_scan)
 
-        # --- Карточки статистики ---
+        # Карточки статистики
         cards_layout = QHBoxLayout()
         cards_layout.setSpacing(15)
 
@@ -106,7 +218,7 @@ class HomePage(QWidget):
         cards_layout.addWidget(self.card_ai)
         layout.addLayout(cards_layout)
 
-        # --- Уровни защиты ---
+        # Уровни защиты
         info = QFrame()
         info.setObjectName("infoCard")
         info.setStyleSheet(INFO_CARD_QSS)
@@ -124,6 +236,7 @@ class HomePage(QWidget):
             "✅  MalwareBazaar — облачная база malware",
             "✅  URLhaus — проверка ссылок",
             "✅  ИИ-модель — детект zero-day",
+            "✅  Резидентная защита — мониторинг в реальном времени",
             "⚪  VirusTotal — опционально",
         ]:
             lbl = QLabel(text)
@@ -134,6 +247,8 @@ class HomePage(QWidget):
         layout.addStretch()
 
     def update_stats(self, scanned: int, threats: int):
-        """Обновляет статистику на главной странице."""
         self.card_scanned.set_value(str(scanned))
         self.card_threats.set_value(str(threats))
+
+    def set_protection_state(self, enabled: bool):
+        self.protect_card.set_state(enabled)
