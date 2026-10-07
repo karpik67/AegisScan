@@ -15,6 +15,7 @@ from gui.pages.chat_page import ChatPage
 from gui.pages.quarantine_page import QuarantinePage
 from gui.pages.journal_page import JournalPage
 from gui.pages.settings_page import SettingsPage
+from gui.pages.processes_page import ProcessesPage
 from core import resident, journal
 
 
@@ -22,7 +23,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("AegisScan — антивирус с ИИ")
-        self.setMinimumSize(900, 600)
+        self.setMinimumSize(1000, 650)
         self.setStyleSheet(DARK_THEME)
 
         self.stats = {"scanned": 0, "threats": 0}
@@ -62,7 +63,6 @@ class MainWindow(QMainWindow):
 
         root_layout.addWidget(top_bar)
 
-        # Основная область
         body = QHBoxLayout()
         body.setContentsMargins(0, 0, 0, 0)
         body.setSpacing(0)
@@ -80,10 +80,11 @@ class MainWindow(QMainWindow):
         nav_items = [
             ("🏠  Главная", 0),
             ("🔍  Сканер", 1),
-            ("🗄️  Карантин", 2),
-            ("📋  Журнал", 3),
-            ("🤖  ИИ-помощник", 4),
-            ("⚙️  Настройки", 5),
+            ("⚙️  Процессы", 2),
+            ("🗄️  Карантин", 3),
+            ("📋  Журнал", 4),
+            ("🤖  ИИ-помощник", 5),
+            ("🛠  Настройки", 6),
         ]
 
         for label, idx in nav_items:
@@ -98,7 +99,7 @@ class MainWindow(QMainWindow):
 
         sidebar_layout.addStretch()
 
-        version = QLabel("v0.5.0")
+        version = QLabel("v0.6.0")
         version.setStyleSheet("color: #585b70; font-size: 11px; padding: 10px;")
         version.setAlignment(Qt.AlignmentFlag.AlignCenter)
         sidebar_layout.addWidget(version)
@@ -109,17 +110,19 @@ class MainWindow(QMainWindow):
 
         self.home_page = HomePage()
         self.scan_page = ScanPage()
+        self.processes_page = ProcessesPage()
         self.quarantine_page = QuarantinePage()
         self.journal_page = JournalPage()
         self.chat_page = ChatPage()
         self.settings_page = SettingsPage()
 
-        self.stack.addWidget(self.home_page)
-        self.stack.addWidget(self.scan_page)
-        self.stack.addWidget(self.quarantine_page)
-        self.stack.addWidget(self.journal_page)
-        self.stack.addWidget(self.chat_page)
-        self.stack.addWidget(self.settings_page)
+        self.stack.addWidget(self.home_page)         # 0
+        self.stack.addWidget(self.scan_page)         # 1
+        self.stack.addWidget(self.processes_page)    # 2
+        self.stack.addWidget(self.quarantine_page)   # 3
+        self.stack.addWidget(self.journal_page)      # 4
+        self.stack.addWidget(self.chat_page)         # 5
+        self.stack.addWidget(self.settings_page)     # 6
 
         body.addWidget(self.stack, 1)
         root_layout.addLayout(body)
@@ -178,7 +181,6 @@ class MainWindow(QMainWindow):
         self.stats["scanned"] += 1
         self.home_page.update_stats(self.stats["scanned"], self.stats["threats"])
         self._set_status("Обнаружена угроза", "danger")
-
         self.tray.notify(
             "🚨 AegisScan — Обнаружена угроза",
             f"{name}\nФайл помещён в карантин",
@@ -192,12 +194,18 @@ class MainWindow(QMainWindow):
         self.stack.setCurrentIndex(index)
         self.nav_buttons[index].setChecked(True)
 
-        if index == 2:
+        # Автообновление при переходе
+        if index == 2:  # Процессы
+            try:
+                self.processes_page.refresh()
+            except Exception:
+                pass
+        elif index == 3:  # Карантин
             try:
                 self.quarantine_page.refresh()
             except Exception:
                 pass
-        elif index == 3:
+        elif index == 4:  # Журнал
             try:
                 self.journal_page.refresh()
             except Exception:
@@ -210,7 +218,6 @@ class MainWindow(QMainWindow):
         self.stats["scanned"] += 1
         if result.get("malicious", 0) > 0:
             self.stats["threats"] += 1
-
         self.home_page.update_stats(self.stats["scanned"], self.stats["threats"])
 
         if result.get("malicious", 0) > 0:
