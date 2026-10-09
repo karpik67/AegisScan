@@ -1,5 +1,6 @@
 """
 Резидентная защита — мониторинг файловой системы в реальном времени.
+С умной изоляцией: подписанные файлы и файлы > 100 МБ не изолируются.
 """
 import os
 import time
@@ -16,6 +17,9 @@ SUSPICIOUS_EXT = {
     ".cmd", ".ps1", ".vbs", ".js", ".jar", ".zip",
     ".rar", ".7z", ".tar", ".gz",
 }
+
+# Максимальный размер для автоматической изоляции (100 МБ)
+MAX_AUTO_QUARANTINE_SIZE = 100 * 1024 * 1024
 
 
 def _get_watch_dirs() -> list:
@@ -90,7 +94,6 @@ class ResidentProtector(QThread):
             print(f"[Resident] Не удалось запустить observer: {e}")
             return
 
-        # Основной цикл — с проверкой stop_flag
         while not self._stop_flag:
             try:
                 path = self._event_queue.get(timeout=0.3)
@@ -98,7 +101,6 @@ class ResidentProtector(QThread):
                 continue
 
             # Дебаунс — файл может ещё докачиваться
-            # Разбит на короткие паузы, чтобы stop_flag работал
             for _ in range(6):
                 if self._stop_flag:
                     break
@@ -118,7 +120,6 @@ class ResidentProtector(QThread):
 
             self._scan(path)
 
-        # Останавливаем observer
         if self._observer:
             try:
                 self._observer.stop()
@@ -129,37 +130,62 @@ class ResidentProtector(QThread):
         print("[Resident] Поток завершён")
 
     def _scan(self, path: str):
+        """Проверяет файл и при необходимости изолирует."""
         try:
             name = os.path.basename(path)
             print(f"[Resident] Проверяю: {name}")
+
+            # Пропускаем слишком большие файлы от автокарантина
+            try:
+                size = os.path.getsize(path)
+            except Exception:
+                size = 0
+
             result = scanner.scan_file(path)
             result["resident_path"] = path
             self.scan_result.emit(result)
 
-            if result.get("verdict") == "malware":
-                qres = quarantine.quarantine_file(
-                    path,
-                    reason="Обнаружено резидентной защитой",
-                    source="Real-time",
+            verdict = result.get("verdict", "")
+            sig = result.get("signature_status", "unknown")
+
+            # === Решение об автокарантине ===
+            if verdict != "malware":
+                return
+
+            # 1. Подписанный файл — НЕ изолируем
+            if sig == "valid":
+                print(f"[Resident] {name} — подписан, пропущен")
+                return
+
+            # 2. Слишком большой файл — НЕ изолируем автоматически
+            if size > MAX_AUTO_QUARANTINE_SIZE:
+                print(f"[Resident] {name} — {size // (1024*1024)} МБ, "
+                      f"пропущен (слишком большой)")
+                return
+
+            # === Изолируем ===
+            qres = quarantine.quarantine_file(
+                path,
+                reason="Обнаружено резидентной защитой",
+                source="Real-time",
+            )
+            if qres.get("status") == "ok":
+                journal.add_event(
+                    "quarantine", name, path, "quarantined",
+                    "Real-time", "Автоматическая изоляция"
                 )
-                if qres.get("status") == "ok":
-                    journal.add_event(
-                        "quarantine", name, path, "quarantined",
-                        "Real-time", "Автоматическая изоляция"
-                    )
-                    self.threat_detected.emit({
-                        "path": path,
-                        "name": name,
-                        "result": result,
-                        "quarantine_id": qres["record"]["id"],
-                    })
+                self.threat_detected.emit({
+                    "path": path,
+                    "name": name,
+                    "result": result,
+                    "quarantine_id": qres["record"]["id"],
+                })
         except Exception as e:
             print(f"[Resident] Ошибка сканирования: {e}")
 
     def stop(self):
         """Останавливает поток и ждёт завершения."""
         self._stop_flag = True
-        # Ждём до 8 секунд, пока поток завершится сам
         if not self.wait(8000):
             print("[Resident] Принудительное завершение потока")
             self.terminate()

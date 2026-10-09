@@ -1,8 +1,8 @@
-"""Главное окно AegisScan с боковой навигацией, треем и резидентной защитой."""
+"""Главное окно AegisScan с боковой навигацией."""
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QFrame, QPushButton, QStackedWidget, QButtonGroup,
-    QMessageBox, QApplication
+    QApplication
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QCloseEvent
@@ -11,11 +11,12 @@ from gui.styles import DARK_THEME
 from gui.tray_icon import TrayIcon
 from gui.pages.home_page import HomePage
 from gui.pages.scan_page import ScanPage
+from gui.pages.processes_page import ProcessesPage
+from gui.pages.startup_page import StartupPage
 from gui.pages.chat_page import ChatPage
 from gui.pages.quarantine_page import QuarantinePage
 from gui.pages.journal_page import JournalPage
 from gui.pages.settings_page import SettingsPage
-from gui.pages.processes_page import ProcessesPage
 from core import resident, journal
 
 
@@ -23,7 +24,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("AegisScan — антивирус с ИИ")
-        self.setMinimumSize(1000, 650)
+        self.setMinimumSize(1100, 700)
         self.setStyleSheet(DARK_THEME)
 
         self.stats = {"scanned": 0, "threats": 0}
@@ -42,7 +43,7 @@ class MainWindow(QMainWindow):
         root_layout.setContentsMargins(0, 0, 0, 0)
         root_layout.setSpacing(0)
 
-        # Верхняя панель
+        # Top bar
         top_bar = QFrame()
         top_bar.setStyleSheet(
             "background-color: #181825; border-bottom: 1px solid #313244;"
@@ -63,6 +64,7 @@ class MainWindow(QMainWindow):
 
         root_layout.addWidget(top_bar)
 
+        # Body
         body = QHBoxLayout()
         body.setContentsMargins(0, 0, 0, 0)
         body.setSpacing(0)
@@ -81,10 +83,11 @@ class MainWindow(QMainWindow):
             ("🏠  Главная", 0),
             ("🔍  Сканер", 1),
             ("⚙️  Процессы", 2),
-            ("🗄️  Карантин", 3),
-            ("📋  Журнал", 4),
-            ("🤖  ИИ-помощник", 5),
-            ("🛠  Настройки", 6),
+            ("🚀  Автозагрузка", 3),
+            ("🗄️  Карантин", 4),
+            ("📋  Журнал", 5),
+            ("🤖  ИИ-помощник", 6),
+            ("🛠  Настройки", 7),
         ]
 
         for label, idx in nav_items:
@@ -99,7 +102,7 @@ class MainWindow(QMainWindow):
 
         sidebar_layout.addStretch()
 
-        version = QLabel("v0.6.0")
+        version = QLabel("v0.7.0")
         version.setStyleSheet("color: #585b70; font-size: 11px; padding: 10px;")
         version.setAlignment(Qt.AlignmentFlag.AlignCenter)
         sidebar_layout.addWidget(version)
@@ -111,18 +114,20 @@ class MainWindow(QMainWindow):
         self.home_page = HomePage()
         self.scan_page = ScanPage()
         self.processes_page = ProcessesPage()
+        self.startup_page = StartupPage()
         self.quarantine_page = QuarantinePage()
         self.journal_page = JournalPage()
         self.chat_page = ChatPage()
         self.settings_page = SettingsPage()
 
-        self.stack.addWidget(self.home_page)         # 0
-        self.stack.addWidget(self.scan_page)         # 1
-        self.stack.addWidget(self.processes_page)    # 2
-        self.stack.addWidget(self.quarantine_page)   # 3
-        self.stack.addWidget(self.journal_page)      # 4
-        self.stack.addWidget(self.chat_page)         # 5
-        self.stack.addWidget(self.settings_page)     # 6
+        self.stack.addWidget(self.home_page)        # 0
+        self.stack.addWidget(self.scan_page)        # 1
+        self.stack.addWidget(self.processes_page)   # 2
+        self.stack.addWidget(self.startup_page)     # 3
+        self.stack.addWidget(self.quarantine_page)  # 4
+        self.stack.addWidget(self.journal_page)     # 5
+        self.stack.addWidget(self.chat_page)        # 6
+        self.stack.addWidget(self.settings_page)    # 7
 
         body.addWidget(self.stack, 1)
         root_layout.addLayout(body)
@@ -194,20 +199,17 @@ class MainWindow(QMainWindow):
         self.stack.setCurrentIndex(index)
         self.nav_buttons[index].setChecked(True)
 
-        # Автообновление при переходе
-        if index == 2:  # Процессы
+        # Автообновление страниц
+        refreshers = {
+            2: self.processes_page,
+            3: self.startup_page,
+            4: self.quarantine_page,
+            5: self.journal_page,
+        }
+        page = refreshers.get(index)
+        if page:
             try:
-                self.processes_page.refresh()
-            except Exception:
-                pass
-        elif index == 3:  # Карантин
-            try:
-                self.quarantine_page.refresh()
-            except Exception:
-                pass
-        elif index == 4:  # Журнал
-            try:
-                self.journal_page.refresh()
+                page.refresh()
             except Exception:
                 pass
 
