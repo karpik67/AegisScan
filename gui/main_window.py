@@ -46,18 +46,30 @@ class MainWindow(QMainWindow):
         root_layout.setContentsMargins(0, 0, 0, 0)
         root_layout.setSpacing(0)
 
-        # Top bar
+        # ВЕРХНЯЯ ПАНЕЛЬ
         top_bar = QFrame()
         top_bar.setStyleSheet(
-            "background-color: #181825; border-bottom: 1px solid #313244;"
+            "background-color: #0a0d12; "
+            "border-bottom: 1px solid #21262d;"
         )
-        top_bar.setFixedHeight(55)
+        top_bar.setFixedHeight(56)
+
         top_layout = QHBoxLayout(top_bar)
         top_layout.setContentsMargins(20, 0, 20, 0)
+        top_layout.setSpacing(12)
 
-        app_title = QLabel("🛡  AegisScan")
+        logo = QLabel("⬢")
+        logo.setStyleSheet(
+            "color: #10b981; font-size: 22px; font-weight: bold; "
+            "background: transparent;"
+        )
+        logo.setFixedWidth(28)
+        top_layout.addWidget(logo)
+
+        app_title = QLabel("AegisScan")
         app_title.setObjectName("appTitle")
         top_layout.addWidget(app_title)
+
         top_layout.addStretch()
 
         self.status_badge = QLabel("Защита активна")
@@ -67,7 +79,7 @@ class MainWindow(QMainWindow):
 
         root_layout.addWidget(top_bar)
 
-        # Body
+        # ОСНОВНАЯ ОБЛАСТЬ
         body = QHBoxLayout()
         body.setContentsMargins(0, 0, 0, 0)
         body.setSpacing(0)
@@ -75,7 +87,7 @@ class MainWindow(QMainWindow):
         sidebar = QFrame()
         sidebar.setObjectName("sidebar")
         sidebar_layout = QVBoxLayout(sidebar)
-        sidebar_layout.setContentsMargins(0, 15, 0, 15)
+        sidebar_layout.setContentsMargins(0, 12, 0, 12)
         sidebar_layout.setSpacing(2)
 
         self.nav_buttons = []
@@ -83,24 +95,25 @@ class MainWindow(QMainWindow):
         self.button_group.setExclusive(True)
 
         nav_items = [
-            ("🏠  Главная", 0),
-            ("🔍  Сканер файла", 1),
-            ("💽  Сканер диска", 2),
-            ("⚙️  Процессы", 3),
-            ("🚀  Автозагрузка", 4),
-            ("🌐  Сеть", 5),
-            ("🌍  Браузеры", 6),
-            ("🗄️  Карантин", 7),
-            ("📋  Журнал", 8),
-            ("🤖  ИИ-помощник", 9),
-            ("🛠  Настройки", 10),
+            ("Главная", 0),
+            ("Сканер файла", 1),
+            ("Сканер диска", 2),
+            ("Процессы", 3),
+            ("Автозагрузка", 4),
+            ("Сеть", 5),
+            ("Браузеры", 6),
+            ("Карантин", 7),
+            ("Журнал", 8),
+            ("ИИ-помощник", 9),
+            ("Настройки", 10),
         ]
 
         for label, idx in nav_items:
             btn = QPushButton(label)
             btn.setObjectName("navButton")
             btn.setCheckable(True)
-            btn.setMinimumHeight(42)
+            btn.setMinimumHeight(40)
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
             btn.clicked.connect(lambda _, i=idx: self._switch_page(i))
             sidebar_layout.addWidget(btn)
             self.nav_buttons.append(btn)
@@ -108,8 +121,11 @@ class MainWindow(QMainWindow):
 
         sidebar_layout.addStretch()
 
-        version = QLabel("v1.0.0")
-        version.setStyleSheet("color: #585b70; font-size: 11px; padding: 10px;")
+        version = QLabel("v1.2.1")
+        version.setStyleSheet(
+            "color: #484f58; font-size: 11px; padding: 8px; "
+            "background: transparent;"
+        )
         version.setAlignment(Qt.AlignmentFlag.AlignCenter)
         sidebar_layout.addWidget(version)
 
@@ -145,7 +161,9 @@ class MainWindow(QMainWindow):
         root_layout.addLayout(body)
 
         self.home_page.scan_requested.connect(self._go_to_scan)
-        self.home_page.protection_toggled.connect(self._on_protection_toggled)
+        self.home_page.protection_toggled.connect(
+            self._on_protection_toggled
+        )
         self.scan_page.scan_completed.connect(self._on_scan_completed)
 
         self.nav_buttons[0].setChecked(True)
@@ -167,8 +185,10 @@ class MainWindow(QMainWindow):
             self.protector.start()
             self.home_page.set_protection_state(True)
             self.tray.set_protection_state(True)
-            journal.add_event("startup", "AegisScan", "", "clean", "System",
-                              "Резидентная защита запущена")
+            journal.add_event(
+                "startup", "AegisScan", "", "clean", "System",
+                "Резидентная защита запущена"
+            )
         except Exception as e:
             print(f"[Main] Ошибка запуска защиты: {e}")
 
@@ -179,12 +199,12 @@ class MainWindow(QMainWindow):
             except Exception as e:
                 print(f"[Main] Ошибка остановки: {e}")
             self.protector = None
-        journal.add_event("startup", "AegisScan", "", "clean", "System",
-                          "Резидентная защита остановлена")
+        journal.add_event(
+            "startup", "AegisScan", "", "clean", "System",
+            "Резидентная защита остановлена"
+        )
 
     def _stop_all_workers(self):
-        """Останавливает все фоновые потоки перед выходом."""
-        # 1. Резидентная защита
         if self.protector is not None:
             try:
                 self.protector.stop()
@@ -192,48 +212,26 @@ class MainWindow(QMainWindow):
                 pass
             self.protector = None
 
-        # 2. Сканер диска
         try:
             self.disk_page.cleanup()
         except Exception:
             pass
 
-        # 3. Сканер процессов
-        try:
-            if (self.processes_page.loader is not None
-                    and self.processes_page.loader.isRunning()):
-                self.processes_page.loader.wait(2000)
-        except Exception:
-            pass
+        for page in [self.processes_page, self.startup_page,
+                     self.network_page, self.browser_page]:
+            try:
+                loader = getattr(page, "loader", None)
+                if loader is not None and loader.isRunning():
+                    loader.wait(2000)
+                cw = getattr(page, "country_worker", None)
+                if cw is not None and cw.isRunning():
+                    cw.wait(2000)
+                sw = getattr(page, "scanner_worker", None)
+                if sw is not None and sw.isRunning():
+                    sw.wait(2000)
+            except Exception:
+                pass
 
-        # 4. Автозагрузка
-        try:
-            if (self.startup_page.loader is not None
-                    and self.startup_page.loader.isRunning()):
-                self.startup_page.loader.wait(2000)
-        except Exception:
-            pass
-
-        # 5. Сеть
-        try:
-            if (self.network_page.loader is not None
-                    and self.network_page.loader.isRunning()):
-                self.network_page.loader.wait(2000)
-            if (self.network_page.country_worker is not None
-                    and self.network_page.country_worker.isRunning()):
-                self.network_page.country_worker.wait(2000)
-        except Exception:
-            pass
-
-        # 6. Браузеры
-        try:
-            if (self.browser_page.loader is not None
-                    and self.browser_page.loader.isRunning()):
-                self.browser_page.loader.wait(2000)
-        except Exception:
-            pass
-
-        # 7. Чат
         try:
             if (self.chat_page.worker is not None
                     and self.chat_page.worker.isRunning()):
@@ -255,16 +253,20 @@ class MainWindow(QMainWindow):
         name = info.get("name", "—")
         self.stats["threats"] += 1
         self.stats["scanned"] += 1
-        self.home_page.update_stats(self.stats["scanned"], self.stats["threats"])
+        self.home_page.update_stats(
+            self.stats["scanned"], self.stats["threats"]
+        )
         self._set_status("Обнаружена угроза", "danger")
         self.tray.notify(
-            "🚨 AegisScan — Обнаружена угроза",
+            "AegisScan — Обнаружена угроза",
             f"{name}\nФайл помещён в карантин",
         )
 
     def _on_resident_scan(self, result: dict):
         self.stats["scanned"] += 1
-        self.home_page.update_stats(self.stats["scanned"], self.stats["threats"])
+        self.home_page.update_stats(
+            self.stats["scanned"], self.stats["threats"]
+        )
 
     def _switch_page(self, index: int):
         self.stack.setCurrentIndex(index)
@@ -292,7 +294,9 @@ class MainWindow(QMainWindow):
         self.stats["scanned"] += 1
         if result.get("malicious", 0) > 0:
             self.stats["threats"] += 1
-        self.home_page.update_stats(self.stats["scanned"], self.stats["threats"])
+        self.home_page.update_stats(
+            self.stats["scanned"], self.stats["threats"]
+        )
 
         if result.get("malicious", 0) > 0:
             self._set_status("Обнаружена угроза", "danger")
@@ -333,7 +337,8 @@ class MainWindow(QMainWindow):
             try:
                 self.tray.notify(
                     "AegisScan",
-                    "Приложение свёрнуто в трей. Защита продолжает работу.",
+                    "Приложение свёрнуто в трей. "
+                    "Защита продолжает работу.",
                 )
             except Exception:
                 pass

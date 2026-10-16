@@ -1,6 +1,5 @@
 """
 Управление настройками AegisScan.
-Хранит настройки в JSON рядом с .exe (или в корне проекта).
 """
 import os
 import sys
@@ -16,6 +15,8 @@ DEFAULT_CONFIG = {
     "save_history": True,
     "autostart": False,
     "start_minimized": True,
+    "smooth_scroll": True,
+    "scroll_speed": 50,
     "theme": "dark",
 }
 
