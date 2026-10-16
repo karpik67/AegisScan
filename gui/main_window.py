@@ -13,6 +13,7 @@ from gui.pages.home_page import HomePage
 from gui.pages.scan_page import ScanPage
 from gui.pages.processes_page import ProcessesPage
 from gui.pages.startup_page import StartupPage
+from gui.pages.network_page import NetworkPage
 from gui.pages.chat_page import ChatPage
 from gui.pages.quarantine_page import QuarantinePage
 from gui.pages.journal_page import JournalPage
@@ -84,10 +85,11 @@ class MainWindow(QMainWindow):
             ("🔍  Сканер", 1),
             ("⚙️  Процессы", 2),
             ("🚀  Автозагрузка", 3),
-            ("🗄️  Карантин", 4),
-            ("📋  Журнал", 5),
-            ("🤖  ИИ-помощник", 6),
-            ("🛠  Настройки", 7),
+            ("🌐  Сеть", 4),
+            ("🗄️  Карантин", 5),
+            ("📋  Журнал", 6),
+            ("🤖  ИИ-помощник", 7),
+            ("🛠  Настройки", 8),
         ]
 
         for label, idx in nav_items:
@@ -102,7 +104,7 @@ class MainWindow(QMainWindow):
 
         sidebar_layout.addStretch()
 
-        version = QLabel("v0.7.0")
+        version = QLabel("v0.8.0")
         version.setStyleSheet("color: #585b70; font-size: 11px; padding: 10px;")
         version.setAlignment(Qt.AlignmentFlag.AlignCenter)
         sidebar_layout.addWidget(version)
@@ -115,6 +117,7 @@ class MainWindow(QMainWindow):
         self.scan_page = ScanPage()
         self.processes_page = ProcessesPage()
         self.startup_page = StartupPage()
+        self.network_page = NetworkPage()
         self.quarantine_page = QuarantinePage()
         self.journal_page = JournalPage()
         self.chat_page = ChatPage()
@@ -124,10 +127,11 @@ class MainWindow(QMainWindow):
         self.stack.addWidget(self.scan_page)        # 1
         self.stack.addWidget(self.processes_page)   # 2
         self.stack.addWidget(self.startup_page)     # 3
-        self.stack.addWidget(self.quarantine_page)  # 4
-        self.stack.addWidget(self.journal_page)     # 5
-        self.stack.addWidget(self.chat_page)        # 6
-        self.stack.addWidget(self.settings_page)    # 7
+        self.stack.addWidget(self.network_page)     # 4
+        self.stack.addWidget(self.quarantine_page)  # 5
+        self.stack.addWidget(self.journal_page)     # 6
+        self.stack.addWidget(self.chat_page)        # 7
+        self.stack.addWidget(self.settings_page)    # 8
 
         body.addWidget(self.stack, 1)
         root_layout.addLayout(body)
@@ -203,8 +207,9 @@ class MainWindow(QMainWindow):
         refreshers = {
             2: self.processes_page,
             3: self.startup_page,
-            4: self.quarantine_page,
-            5: self.journal_page,
+            4: self.network_page,
+            5: self.quarantine_page,
+            6: self.journal_page,
         }
         page = refreshers.get(index)
         if page:
