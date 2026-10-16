@@ -14,6 +14,7 @@ from gui.pages.scan_page import ScanPage
 from gui.pages.processes_page import ProcessesPage
 from gui.pages.startup_page import StartupPage
 from gui.pages.network_page import NetworkPage
+from gui.pages.browser_page import BrowserPage
 from gui.pages.chat_page import ChatPage
 from gui.pages.quarantine_page import QuarantinePage
 from gui.pages.journal_page import JournalPage
@@ -25,7 +26,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("AegisScan — антивирус с ИИ")
-        self.setMinimumSize(1100, 700)
+        self.setMinimumSize(1150, 700)
         self.setStyleSheet(DARK_THEME)
 
         self.stats = {"scanned": 0, "threats": 0}
@@ -86,10 +87,11 @@ class MainWindow(QMainWindow):
             ("⚙️  Процессы", 2),
             ("🚀  Автозагрузка", 3),
             ("🌐  Сеть", 4),
-            ("🗄️  Карантин", 5),
-            ("📋  Журнал", 6),
-            ("🤖  ИИ-помощник", 7),
-            ("🛠  Настройки", 8),
+            ("🌍  Браузеры", 5),
+            ("🗄️  Карантин", 6),
+            ("📋  Журнал", 7),
+            ("🤖  ИИ-помощник", 8),
+            ("🛠  Настройки", 9),
         ]
 
         for label, idx in nav_items:
@@ -104,7 +106,7 @@ class MainWindow(QMainWindow):
 
         sidebar_layout.addStretch()
 
-        version = QLabel("v0.8.0")
+        version = QLabel("v0.9.0")
         version.setStyleSheet("color: #585b70; font-size: 11px; padding: 10px;")
         version.setAlignment(Qt.AlignmentFlag.AlignCenter)
         sidebar_layout.addWidget(version)
@@ -118,6 +120,7 @@ class MainWindow(QMainWindow):
         self.processes_page = ProcessesPage()
         self.startup_page = StartupPage()
         self.network_page = NetworkPage()
+        self.browser_page = BrowserPage()
         self.quarantine_page = QuarantinePage()
         self.journal_page = JournalPage()
         self.chat_page = ChatPage()
@@ -128,10 +131,11 @@ class MainWindow(QMainWindow):
         self.stack.addWidget(self.processes_page)   # 2
         self.stack.addWidget(self.startup_page)     # 3
         self.stack.addWidget(self.network_page)     # 4
-        self.stack.addWidget(self.quarantine_page)  # 5
-        self.stack.addWidget(self.journal_page)     # 6
-        self.stack.addWidget(self.chat_page)        # 7
-        self.stack.addWidget(self.settings_page)    # 8
+        self.stack.addWidget(self.browser_page)     # 5
+        self.stack.addWidget(self.quarantine_page)  # 6
+        self.stack.addWidget(self.journal_page)     # 7
+        self.stack.addWidget(self.chat_page)        # 8
+        self.stack.addWidget(self.settings_page)    # 9
 
         body.addWidget(self.stack, 1)
         root_layout.addLayout(body)
@@ -203,13 +207,13 @@ class MainWindow(QMainWindow):
         self.stack.setCurrentIndex(index)
         self.nav_buttons[index].setChecked(True)
 
-        # Автообновление страниц
         refreshers = {
             2: self.processes_page,
             3: self.startup_page,
             4: self.network_page,
-            5: self.quarantine_page,
-            6: self.journal_page,
+            5: self.browser_page,
+            6: self.quarantine_page,
+            7: self.journal_page,
         }
         page = refreshers.get(index)
         if page:
