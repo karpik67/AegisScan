@@ -11,6 +11,7 @@ from gui.styles import DARK_THEME
 from gui.tray_icon import TrayIcon
 from gui.pages.home_page import HomePage
 from gui.pages.scan_page import ScanPage
+from gui.pages.disk_page import DiskPage
 from gui.pages.processes_page import ProcessesPage
 from gui.pages.startup_page import StartupPage
 from gui.pages.network_page import NetworkPage
@@ -83,15 +84,16 @@ class MainWindow(QMainWindow):
 
         nav_items = [
             ("🏠  Главная", 0),
-            ("🔍  Сканер", 1),
-            ("⚙️  Процессы", 2),
-            ("🚀  Автозагрузка", 3),
-            ("🌐  Сеть", 4),
-            ("🌍  Браузеры", 5),
-            ("🗄️  Карантин", 6),
-            ("📋  Журнал", 7),
-            ("🤖  ИИ-помощник", 8),
-            ("🛠  Настройки", 9),
+            ("🔍  Сканер файла", 1),
+            ("💽  Сканер диска", 2),
+            ("⚙️  Процессы", 3),
+            ("🚀  Автозагрузка", 4),
+            ("🌐  Сеть", 5),
+            ("🌍  Браузеры", 6),
+            ("🗄️  Карантин", 7),
+            ("📋  Журнал", 8),
+            ("🤖  ИИ-помощник", 9),
+            ("🛠  Настройки", 10),
         ]
 
         for label, idx in nav_items:
@@ -106,7 +108,7 @@ class MainWindow(QMainWindow):
 
         sidebar_layout.addStretch()
 
-        version = QLabel("v0.9.0")
+        version = QLabel("v1.0.0")
         version.setStyleSheet("color: #585b70; font-size: 11px; padding: 10px;")
         version.setAlignment(Qt.AlignmentFlag.AlignCenter)
         sidebar_layout.addWidget(version)
@@ -117,6 +119,7 @@ class MainWindow(QMainWindow):
 
         self.home_page = HomePage()
         self.scan_page = ScanPage()
+        self.disk_page = DiskPage()
         self.processes_page = ProcessesPage()
         self.startup_page = StartupPage()
         self.network_page = NetworkPage()
@@ -128,14 +131,15 @@ class MainWindow(QMainWindow):
 
         self.stack.addWidget(self.home_page)        # 0
         self.stack.addWidget(self.scan_page)        # 1
-        self.stack.addWidget(self.processes_page)   # 2
-        self.stack.addWidget(self.startup_page)     # 3
-        self.stack.addWidget(self.network_page)     # 4
-        self.stack.addWidget(self.browser_page)     # 5
-        self.stack.addWidget(self.quarantine_page)  # 6
-        self.stack.addWidget(self.journal_page)     # 7
-        self.stack.addWidget(self.chat_page)        # 8
-        self.stack.addWidget(self.settings_page)    # 9
+        self.stack.addWidget(self.disk_page)        # 2
+        self.stack.addWidget(self.processes_page)   # 3
+        self.stack.addWidget(self.startup_page)     # 4
+        self.stack.addWidget(self.network_page)     # 5
+        self.stack.addWidget(self.browser_page)     # 6
+        self.stack.addWidget(self.quarantine_page)  # 7
+        self.stack.addWidget(self.journal_page)     # 8
+        self.stack.addWidget(self.chat_page)        # 9
+        self.stack.addWidget(self.settings_page)    # 10
 
         body.addWidget(self.stack, 1)
         root_layout.addLayout(body)
@@ -178,6 +182,65 @@ class MainWindow(QMainWindow):
         journal.add_event("startup", "AegisScan", "", "clean", "System",
                           "Резидентная защита остановлена")
 
+    def _stop_all_workers(self):
+        """Останавливает все фоновые потоки перед выходом."""
+        # 1. Резидентная защита
+        if self.protector is not None:
+            try:
+                self.protector.stop()
+            except Exception:
+                pass
+            self.protector = None
+
+        # 2. Сканер диска
+        try:
+            self.disk_page.cleanup()
+        except Exception:
+            pass
+
+        # 3. Сканер процессов
+        try:
+            if (self.processes_page.loader is not None
+                    and self.processes_page.loader.isRunning()):
+                self.processes_page.loader.wait(2000)
+        except Exception:
+            pass
+
+        # 4. Автозагрузка
+        try:
+            if (self.startup_page.loader is not None
+                    and self.startup_page.loader.isRunning()):
+                self.startup_page.loader.wait(2000)
+        except Exception:
+            pass
+
+        # 5. Сеть
+        try:
+            if (self.network_page.loader is not None
+                    and self.network_page.loader.isRunning()):
+                self.network_page.loader.wait(2000)
+            if (self.network_page.country_worker is not None
+                    and self.network_page.country_worker.isRunning()):
+                self.network_page.country_worker.wait(2000)
+        except Exception:
+            pass
+
+        # 6. Браузеры
+        try:
+            if (self.browser_page.loader is not None
+                    and self.browser_page.loader.isRunning()):
+                self.browser_page.loader.wait(2000)
+        except Exception:
+            pass
+
+        # 7. Чат
+        try:
+            if (self.chat_page.worker is not None
+                    and self.chat_page.worker.isRunning()):
+                self.chat_page.worker.wait(2000)
+        except Exception:
+            pass
+
     def _on_protection_toggled(self, enabled: bool):
         if enabled:
             self._start_protection()
@@ -208,12 +271,12 @@ class MainWindow(QMainWindow):
         self.nav_buttons[index].setChecked(True)
 
         refreshers = {
-            2: self.processes_page,
-            3: self.startup_page,
-            4: self.network_page,
-            5: self.browser_page,
-            6: self.quarantine_page,
-            7: self.journal_page,
+            3: self.processes_page,
+            4: self.startup_page,
+            5: self.network_page,
+            6: self.browser_page,
+            7: self.quarantine_page,
+            8: self.journal_page,
         }
         page = refreshers.get(index)
         if page:
@@ -251,7 +314,7 @@ class MainWindow(QMainWindow):
 
     def _quit_app(self):
         self.allow_close = True
-        self._stop_protection()
+        self._stop_all_workers()
         try:
             self.tray.hide()
         except Exception:
@@ -260,11 +323,7 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event: QCloseEvent):
         if self.allow_close:
-            if self.protector is not None:
-                try:
-                    self.protector.stop()
-                except Exception:
-                    pass
+            self._stop_all_workers()
             event.accept()
             return
 
@@ -280,5 +339,5 @@ class MainWindow(QMainWindow):
                 pass
         else:
             self.allow_close = True
-            self._stop_protection()
+            self._stop_all_workers()
             event.accept()
